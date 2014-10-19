@@ -1,5 +1,4 @@
-####new function:  filter some businesses which have been reviewed by more than 1000 in the period
-###R is set to a constant value 
+###used to decide R
 import simplejson as json
 import datetime
 import time
