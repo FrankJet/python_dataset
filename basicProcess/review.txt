@@ -1,0 +1,6 @@
+the number of business which is reviewed by 
+more than 500 users is:187
+more than 1000 users is:51
+最多评论数：3615
+最少评论数：1
+2个评论数的business个数：6481
