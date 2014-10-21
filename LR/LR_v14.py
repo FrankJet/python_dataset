@@ -1,12 +1,10 @@
-####new function:  filter some businesses which have been reviewed by more than 1000 in the period
+####new function: the result is stored in a file "coef_result.txt"
 ###R is set to a constant value 
-###plot the distribution of the user along activeFriendSum
 import simplejson as json
 import datetime
 import time
 import numpy as np
 import math
-import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 from dateutil.relativedelta import *
@@ -124,28 +122,28 @@ def filterReviewData(reviewData, reviewSum):
 	
 		bNum = reviewSum[business]
 		
-		if bNum > 1000:
+		if bNum > 50:
 			reviewSet.add(business)
-			
-	monthList = list()
-	nextMonth = downMonth
-	for i in range(16):
-		monthList.append(nextMonth)
-		nextMonth = increMonth(nextMonth)
+	reviewList = list(reviewSet)		
+	# monthList = list()
+	# nextMonth = downMonth
+	# for i in range(16):
+		# monthList.append(nextMonth)
+		# nextMonth = increMonth(nextMonth)
 	
-	finalBusinessSet = set()
-	for business in reviewSet:
-		reviewSum = 0
-		for t in monthList:
-			if(reviewData[business].has_key(t)):
-				reviewSum += len(reviewData[business][t])
-		if reviewSum > 1000:
-			finalBusinessSet.add(business)
+	# finalBusinessSet = set()
+	# for business in reviewSet:
+		# reviewSum = 0
+		# for t in monthList:
+			# if(reviewData[business].has_key(t)):
+				# reviewSum += len(reviewData[business][t])
+		# if reviewSum > 1000:
+			# finalBusinessSet.add(business)
 	
-	finalBusinessList = list(finalBusinessSet)
-	print "finalBusiness len %d"%len(finalBusinessList)
+	# finalBusinessList = list(finalBusinessSet)
+	# print "finalBusiness len %d"%len(finalBusinessList)
 	print "end process"
-	return (finalBusinessList)
+	return (reviewList)
 	
 ####selectBusiness which is a list contains the sequence number selected
 def randomBusiness(totalNum, randomNum):
@@ -198,8 +196,8 @@ def update_userInfo(userInfo, reviewBusinessData):
 				userInfo[u]["active"] = 1
 				userInfo[u]["reviewTime"] = t
 	
-	print "active user sum %d"%activeSum
-	print "repeat user sum %d"%len(repeatReviewUserSet)
+	#print "active user sum %d"%activeSum
+	#print "repeat user sum %d"%len(repeatReviewUserSet)
 	return repeatReviewUserSet
 	
 ###active user 
@@ -272,12 +270,12 @@ def LR_user(userInfo, reviewBusinessData, downMonth, timeReviewUser):
 						
 		totalReviewUserSet = totalReviewUserSet.difference(activeUserSet)
 		
-	print "positive samples %d, negative sammples %d, totalsamples %d"%(positive, negative, positive+negative)
-	print "zero Friend users positive %d, negative %d"%(activeZeroSum, unactiveZeroSum)
+	#print "positive samples %d, negative sammples %d, totalsamples %d"%(positive, negative, positive+negative)
+	#print "zero Friend users positive %d, negative %d"%(activeZeroSum, unactiveZeroSum)
 	
 	(LR_coef, LR_intercept) = LR_result(feature, output)
 	
-	return (LR_coef, LR_intercept, Y)
+	return (LR_coef, LR_intercept)
 	
 def LR_result(x, y):
 	#print x
@@ -311,12 +309,14 @@ def LR_user_helper(args):
 	return LR_user(*args)
 	
 def mainFunction(downMonth, upMonth):
+	f_result = open("coef_result.txt", "w")
+
 	(userInfo, timeUserData, userSum, userList) = loadUser()
 	
 	(reviewData, reviewSum, timeReviewUser) = loadReview()
 	(reviewList) = filterReviewData(reviewData, reviewSum)
 	
-	selectBusinessNum = 1
+	selectBusinessNum = 1000
 	selectBusinessList = randomSelectBusiness(reviewList, selectBusinessNum)
 	selectBusinessSet = set(selectBusinessList)
 	
@@ -325,81 +325,27 @@ def mainFunction(downMonth, upMonth):
 	positiveCoef = 0
 	negativeCoef = 0
 	
-	# results=[]
-	# LR_args = [(userInfo, reviewData[i], downMonth, timeReviewUser) for i in selectBusinessSet]
+	results=[]
+	LR_args = [(userInfo, reviewData[i], downMonth, timeReviewUser) for i in selectBusinessSet]
 	
-	# pool = ThreadPool(8)
-	# results = pool.map(LR_user_helper, LR_args)
+	pool = ThreadPool(8)
+	results = pool.map(LR_user_helper, LR_args)
 	
-	reviewBusinessData = reviewData[selectBusinessList[0]]
+	for (LR_coef, LR_intercept) in results:
+		if LR_coef > 0:
+			positiveCoef += 1
+		else:
+			negativeCoef += 1
+			
+		f_result.write("%s\n"%LR_coef)
 	
-	(LR_coef, LR_intercept, LR_Y) = LR_user(userInfo, reviewBusinessData, downMonth, timeReviewUser)
+	f_result.write("positive coef %d, negative coef %d"%(positiveCoef, negativeCoef))
 	
 	endTime = datetime.datetime.now()
 	timeIntervals = (endTime-beginTime).seconds
-	print "positive %d"%np.sum(LR_Y)
-	print "time interval %s"%timeIntervals
-	print "Coef %f"%LR_coef
-	plotOne(LR_Y, len(LR_Y), 0, 0)
+	f_result.write("time interval %s"%timeIntervals)
+	f_result.close()
 
-	###plot the distribution of number of review
-def plotOne(num1, maxReview, minReview, baseYear):
-	x = np.arange((baseYear+minReview), (baseYear+maxReview), 1)
-	
-	plt.figure()
-	plt.plot(x, num1, 'ro')
-	#plt.plot(x, num1, 'ro', x, num1, 'k')
-	
-	plt.xlabel("year")
-	plt.ylabel("userNum")
-	plt.title("UserNum By Year")
-	plt.show()
-	
-def plotOne_value(num1, comValue, baseValue, maxReview, minReview, baseYear, i):
-	x = np.arange((baseYear+minReview), (baseYear+maxReview), 1)
-	
-	midleX = (maxReview - minReview)/2
-	plt.figure()
-	#plt.plot(x, yNum, 'bo', x, yNum, 'k')
-	plt.plot(x, num1, 'ro', x, num1, 'k')
-	plt.plot([midleX], [comValue], 'bo')
-	plt.axhline(y=baseValue, linewidth=10, color='g')
-	plt.xlabel("iter")
-	plt.ylabel("k-value")
-	plt.title("random test")
-	plt.savefig('D:/Yelp/iter_%02d.png'%i, format='png')
-	
-	
-def plotTwo(num1, num2, maxReview, minReview, baseYear):
-	x = np.arange((baseYear+minReview), (baseYear+maxReview), 1)
-	
-	plt.figure()
-	#plt.plot(x, yNum, 'bo', x, yNum, 'k')
-	plt.plot(x, num1, 'ro', x, num1, 'k')
-	plt.plot(x, num2, 'bo', x, num2, 'k')
-	
-	plt.xlabel("year")
-	plt.ylabel("userNum")
-	plt.title("UserNum By Year")
-	plt.show()
-	
-def plotThree(num1, num2, num3, maxReview, minReview, baseYear):
-	x = np.arange((baseYear+minReview), (baseYear+maxReview), 1)
-	
-	plt.figure()
-	#plt.plot(x, yNum, 'bo', x, yNum, 'k')
-	#plt.plot(x, num1, 'ro')
-	#plt.plot(x, num2, 'k')
-	#plt.plot(x, num3, 'go')
-	
-	plt.plot(x, num1, 'ro', x, num1, 'k')
-	plt.plot(x, num2, 'bo', x, num2,'k')
-	plt.plot(x, num3, 'go', x, num3, 'k')
-	
-	plt.xlabel("year")
-	plt.ylabel("userNum")
-	plt.title("UserNum By Year")
-	plt.show()
 
 downMonth = string_toYearMonth('2011-05')
 upMonth = string_toYearMonth('2012-08')
