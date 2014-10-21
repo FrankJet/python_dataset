@@ -161,12 +161,12 @@ def SortDict_Time(timeValDict):
 	timeList = sorted(timeValDict)
 	
 	periodList = []
-	monthRange = 16
+	monthRange = 37
 	for i in range(monthRange):
 		monthTime = timeList[i]
 		sortedTimeValDict.setdefault(monthTime, [])
 		sortedTimeValDict[monthTime] =  timeValDict[monthTime]
-		periodList.append(i)
+		periodList.append(monthTime)
 		
 	return (sortedTimeValDict, periodList)
 	
@@ -214,11 +214,14 @@ def LR_oneBiz(periodList, userInfo, timeReviewerDict_allBiz, repeatReviewUserSet
 	activeZeroSum = 0
 	unactiveZeroSum = 0
 	
+	positive = 0
+	negative = 0
 	totalReviewUserSet = set()
 	
 	for t in periodList:
 		activeUserSet = set()
 		reviewUserSet = set()
+		raw_reviewUserSet = set()
 		
 		if(timeReviewerDict_allBiz.has_key(t)):	
 			raw_reviewUserSet = set(timeReviewerDict_allBiz[t])
@@ -235,6 +238,7 @@ def LR_oneBiz(periodList, userInfo, timeReviewerDict_allBiz, repeatReviewUserSet
 					uActiveFriendSum = activeFriend_Sum(u, userInfo, t)
 					output.append(uActive)
 					
+					positive += 1
 					if(uActiveFriendSum == 0):
 						activeZeroSum += 1
 					
@@ -247,6 +251,7 @@ def LR_oneBiz(periodList, userInfo, timeReviewerDict_allBiz, repeatReviewUserSet
 				activeUserSet.add(u)
 				
 			else:
+				negative += 1
 				uActiveFriendSum = activeFriend_Sum(u, userInfo, t)
 				output.append(uActive)
 				if(uActiveFriendSum == 0):
@@ -262,6 +267,7 @@ def LR_oneBiz(periodList, userInfo, timeReviewerDict_allBiz, repeatReviewUserSet
 						
 		totalReviewUserSet = totalReviewUserSet.difference(activeUserSet)
 	
+	print "positive %d negative %d"%(positive, negative)
 	(LR_coef, LR_intercept) = LR_result(feature, output)
 	
 	return (LR_coef, LR_intercept)
@@ -305,7 +311,7 @@ def mainFunction():
 	(reviewData, reviewSum, timeReviewUser) = loadReview()
 	(reviewList) = filterReviewData(reviewData, reviewSum)
 	
-	selectBusinessNum = 1
+	selectBusinessNum = 1000
 	selectBusinessList = randomSelectBusiness(reviewList, selectBusinessNum)
 	selectBusinessSet = set(selectBusinessList)
 	
@@ -315,7 +321,7 @@ def mainFunction():
 	negativeCoef = 0
 	
 	results=[]
-	pool_args = [(userInfo, reviewData[i], timeReviewerDict_allBizfor) for i in selectBusinessSet]
+	pool_args = [(userInfo, reviewData[i], timeReviewUser) for i in selectBusinessSet]
 	
 	pool = ThreadPool(8)
 	results = pool.map(compute_oneBiz_helper, pool_args)
