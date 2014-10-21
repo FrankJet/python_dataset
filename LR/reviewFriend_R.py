@@ -44,7 +44,7 @@ def loadUser():
 	userYearData={}
 	
 	userNum = 0
-	userFile =  "../../dataset/user.json"
+	userFile =  "../../../dataset/user.json"
 	with open(userFile) as f:
 		for line in f:
 			userJson = json.loads(line)
@@ -76,7 +76,7 @@ def loadReview():
 	reviewSum = {}
 	timeReviewUser = {}
 	
-	reviewFile = "../../dataset/review.json"
+	reviewFile = "../../../dataset/review.json"
 	
 	with open(reviewFile) as f:
 		for line in f:
@@ -100,7 +100,7 @@ def loadReview():
 
 ###filter business which has more than 1000 reviews
 ####reviewList contains the business which has more than 1000 reviews
-def filterReviewData(reviewSum, reviewData):
+def filterReviewData(reviewSum, reviewData, userData):
 	downMonth = string_toYearMonth('2011-05')
 	monthList = list()
 	nextMonth = downMonth
@@ -115,10 +115,14 @@ def filterReviewData(reviewSum, reviewData):
 	for business in reviewData.keys():
 		reviewSum = 0
 		reviewUserList = []
+		reviewUserSet = set()
 		for t in monthList:
 			if(reviewData[business].has_key(t)):
-				t_reviewUserList = reviewreviewData[business][t]
-				reviewUserList.extend(t_reviewUserList)
+				t_reviewUserList = reviewData[business][t]
+				reviewUserSet = reviewUserSet.union(set(t_reviewUserList))
+		if(len(reviewUserSet) == 0):
+			continue
+		reviewUserList = list(reviewUserSet)
 		reviewSum = countPairOfFriend(reviewUserList, userData)
 		businessReviewSumList.append(reviewSum)
 		if reviewSum > 400:
@@ -131,22 +135,25 @@ def filterReviewData(reviewSum, reviewData):
 
 def countPairOfFriend(userList, userData):
 	friendSum = 0
+	print "len of userList %d"%len(userList)
 	for u in userList:
 		uFriendList = userData[u]
+		print "uFriendNum %d"%len(uFriendList)
 		uFriendSet = set(uFriendList)
 		commonUserSet = uFriendSet.intersection(set(userList))
 		friendSum += len(commonUserSet)
 		
-	friendSum = friendSum/2
+	friendSum = float(friendSum)/2
+	print "friendSum %d"%friendSum
 	return friendSum
 		
 def increMonth(baseMonth):
 	return baseMonth+relativedelta(months=+1)
 	
 def mainFunction():
-	
+	(userData, userYearData, userNum)=loadUser()
 	(reviewData, reviewSum, timeReviewUser)	 = loadReview()
-	(reviewList, businessReviewSumList) = filterReviewData(reviewSum, reviewData)
+	(reviewList, businessReviewSumList) = filterReviewData(reviewSum, reviewData, userData)
 
 	(keyValue, keyPercentile) = statisticAttribute(businessReviewSumList)
 	print keyValue, keyPercentile
@@ -170,6 +177,7 @@ def statisticAttribute(numList):
 def get_CDF(numList):
 	print "total number of numList %d"%len(numList)
 	numArray = np.asarray(numList)
+	print numArray.min(), numArray.max()
 	bins_num = np.arange(np.floor(numArray.min()), np.ceil(numArray.max()))
 	hist, bin_edges = np.histogram(numArray, bins=bins_num, density=True)
 	#print hist
@@ -180,6 +188,7 @@ def get_CDF(numList):
 def plot_result(xArray, yArray, keyValue, keyPercentile):
 	plt.plot(xArray, yArray)
 	plt.plot([keyValue], [keyPercentile], 'ro')
+	#plt.xlim(0, 1)
 	plt.show()	
 
 mainFunction()
