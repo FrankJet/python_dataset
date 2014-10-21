@@ -998,4 +998,3 @@
 [[ 0.03232116]]
 [[ 0.03184217]]
 [[ 0.0292548]]
-positive coef 990, negative coef 10time interval 8469
