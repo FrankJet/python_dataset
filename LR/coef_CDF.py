@@ -12,7 +12,7 @@ def readTxtToList():
 	for line in fp_read:
 		readNum = line[line.find("[")+1:line.find("]")]
 		coef = readNum[readNum.find("[")+1:]
-		coefList.append(coef)
+		coefList.append(float(coef))
 		
 	fp_read.close()
 	return coefList
