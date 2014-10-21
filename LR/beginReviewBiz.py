@@ -161,7 +161,10 @@ def SortDict_Time(timeValDict):
 	timeList = sorted(timeValDict)
 	
 	periodList = []
-	monthRange = 37
+	monthRange = 30
+	
+	if(monthRange > len(timeList)):
+		monthRange = len(timeList)
 	for i in range(monthRange):
 		monthTime = timeList[i]
 		sortedTimeValDict.setdefault(monthTime, [])
@@ -311,7 +314,7 @@ def mainFunction():
 	(reviewData, reviewSum, timeReviewUser) = loadReview()
 	(reviewList) = filterReviewData(reviewData, reviewSum)
 	
-	selectBusinessNum = 1000
+	selectBusinessNum = 10
 	selectBusinessList = randomSelectBusiness(reviewList, selectBusinessNum)
 	selectBusinessSet = set(selectBusinessList)
 	
@@ -320,11 +323,19 @@ def mainFunction():
 	positiveCoef = 0
 	negativeCoef = 0
 	
-	results=[]
-	pool_args = [(userInfo, reviewData[i], timeReviewUser) for i in selectBusinessSet]
+	# results=[]
+	# pool_args = [(userInfo, reviewData[i], timeReviewUser) for i in selectBusinessSet]
 	
-	pool = ThreadPool(8)
-	results = pool.map(compute_oneBiz_helper, pool_args)
+	# pool = ThreadPool(8)
+	# results = pool.map(compute_oneBiz_helper, pool_args)
+	
+	results = []
+	for i in range(selectBusinessNum):
+		reviewBusinessData = reviewData[selectBusinessList[i]]
+	
+		(LR_coef, LR_intercept) = compute_oneBiz(userInfo, reviewBusinessData, timeReviewUser)
+		
+		results.append((LR_coef, LR_intercept))
 	
 	for (LR_coef, LR_intercept) in results:
 		if LR_coef > 0:
