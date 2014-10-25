@@ -1,4 +1,4 @@
-###new function: statistic the beginReviewTime for a business and build the period from the beginning reviewTime.
+###new function:shuffling the reviewing time and debug the program
 ###R is set to a constant value 
 import simplejson as json
 import datetime
@@ -122,7 +122,7 @@ def filterReviewData(reviewData, reviewSum):
 	
 		bNum = reviewSum[business]
 		
-		if bNum > 1000:
+		if bNum > 50:
 			reviewSet.add(business)
 	reviewList = list(reviewSet)
 	
@@ -155,38 +155,76 @@ def randomSelectBusiness(reviewList, selectBusinessNum):
 		selectBusinessList = [reviewList[i] for i in selectBusiness]
 	return selectBusinessList
 
+def increMonth(baseMonth):
+	return baseMonth+relativedelta(months=+1)
+	
 ###cut part of the dict and sort the dict
-def SortDict_Time(timeValDict):
+def SortDict_Time(timeValDict, userInfo):
 	sortedTimeValDict = {}
 	timeList = sorted(timeValDict)
+	timeSet = set(timeList)
 	
+	timeUserDict_oneBiz = {}##{time:[user]}
 	periodList = []
-	monthRange = 30
+	timeUserLenDict = {}
 	
+	WList_oneBiz = [] ##w in the paper
+	tempWList_oneBiz = []
+	WSet_oneBiz = set()
+	
+	
+	monthRange = 18
 	if(monthRange > len(timeList)):
 		monthRange = len(timeList)
+	
+	monthTime = timeList[0]
+	
 	for i in range(monthRange):
-		monthTime = timeList[i]
-		sortedTimeValDict.setdefault(monthTime, [])
-		sortedTimeValDict[monthTime] =  timeValDict[monthTime]
 		periodList.append(monthTime)
+
+		if monthTime in timeSet:
+			sortedTimeValDict.setdefault(monthTime, [])
+			timeUserLenDict.setdefault(monthTime, 0)
+			
+			reviewUserList = timeValDict[monthTime]
+			reviewUserSet = set(reviewUserList)
+			
+			reviewUserSet = reviewUserSet.difference(WSet_oneBiz)
+			reviewUserList = list(reviewUserSet)
+			sortedTimeValDict[monthTime] =  reviewUserList
+			
+			timeUserLenDict[monthTime] = len(reviewUserList)
+			
+			WSet_oneBiz = WSet_oneBiz.union(reviewUserSet)
 		
-	return (sortedTimeValDict, periodList)
+		monthTime = increMonth(monthTime)
+	WList_oneBiz = list(WSet_oneBiz)
+	tempWList_oneBiz = list(WSet_oneBiz)
+
+	for t in periodList:
+		for user in tempWList_oneBiz:
+			uSinceTime = userInfo[user]["sinceTime"]
+			if (monthDiff(uSinceTime, t)<=0):
+				timeUserDict_oneBiz.setdefault(t, [])
+				timeUserDict_oneBiz[t].append(user)
+				tempWList_oneBiz.remove(user)	
+		
+	return (sortedTimeValDict, periodList, WList_oneBiz, timeUserDict_oneBiz, timeUserLenDict)
 	
 ###update the userInfo: "reviewTime", "active" for a business
-def UpdateUserInfo_oneBiz(userInfo, timeReviewerDict_oneBiz):
+def UpdateUserInfo_oneBiz(userInfo, timeReviewerDict_oneBiz, selectBusiness):
 	repeatReviewUserSet = set()
 	for t in timeReviewerDict_oneBiz.keys():
-		reviewUserSet = set(timeReviewerDict_oneBiz[t])
+		reviewUserList = timeReviewerDict_oneBiz[t]
+		reviewUserSet = set(reviewUserList)
+		
 		for u in reviewUserSet:
 			preActive = userInfo[u]["active"] 
 			if(preActive == 1):
-				repeatReviewUserSet.add(u)
+				continue
 			else:
 				userInfo[u]["active"] = 1
 				userInfo[u]["reviewTime"] = t
-	
-	return repeatReviewUserSet
 
 ##timeReviewerDict_oneBiz {time:[reviewer]}
 def ResetUserInfo_oneBiz(userInfo, timeReviewerDict_oneBiz):
@@ -199,17 +237,42 @@ def ResetUserInfo_oneBiz(userInfo, timeReviewerDict_oneBiz):
 			userInfo[u]["reviewTime"] = defaultReviewTime
 			userInfo[u]["active"] = defaultActive	
 	
-def compute_oneBiz(userInfo, reviewDict_oneBiz, timeReviewerDict_allBiz):
-	(timeReviewerDict_oneBiz, periodList) = SortDict_Time(reviewDict_oneBiz)
+def UpdateTimeReviewer_allBiz(reviewData, selectBusiness, timeReviewerDict_oneBiz):
+	for t in timeReviewerDict_oneBiz.keys():
+		reviewUserList = timeReviewerDict_oneBiz[t]
+		reviewData[selectBusiness][t] = reviewUserList
+
+def ResetTimeReviewer_allBiz(reviewData, selectBusiness, timeReviewerDict_oneBiz):
+	for t in timeReviewerDict_oneBiz.keys():
+		reviewUserList = timeReviewerDict_oneBiz[t]
+		reviewData[selectBusiness][t] = reviewUserList
+			
+def compute_oneBiz(userInfo, selectBusiness, reviewData):
+	timereviewerDict_allBiz = dict(reviewData)
+	reviewDict_oneBiz = timereviewerDict_allBiz[selectBusiness]
+	(timeReviewerDict_oneBiz, periodList, WList_oneBiz, timeUserDict_oneBiz, timeUserLenDict) = SortDict_Time(reviewDict_oneBiz, userInfo)
 	
-	repeatReviewUserSet = UpdateUserInfo_oneBiz(userInfo, timeReviewerDict_oneBiz)
-	(LR_coef, LR_intercept) = LR_oneBiz(periodList, userInfo, timeReviewerDict_allBiz, repeatReviewUserSet)
+	###before permute
+	UpdateUserInfo_oneBiz(userInfo, timeReviewerDict_oneBiz, selectBusiness)
+
+	(LR_coef, LR_intercept) = LR_oneBiz(periodList, userInfo, timereviewerDict_allBiz)
 	ResetUserInfo_oneBiz(userInfo, timeReviewerDict_oneBiz)
 	
-	return (LR_coef, LR_intercept)
+	###permuteTime
+	permute_timeReviewerDict_oneBiz = permuteTime(timeReviewerDict_oneBiz, timeUserDict_oneBiz, periodList, timeUserLenDict)
+		
+	UpdateUserInfo_oneBiz(userInfo, permute_timeReviewerDict_oneBiz, selectBusiness)
+	
+	UpdateTimeReviewer_allBiz(timereviewerDict_allBiz, selectBusiness, permute_timeReviewerDict_oneBiz)
+	
+	(LR_coef2, LR_intercept2) = LR_oneBiz(periodList, userInfo, timereviewerDict_allBiz)
+	ResetUserInfo_oneBiz(userInfo, permute_timeReviewerDict_oneBiz)
+	ResetTimeReviewer_allBiz(timereviewerDict_allBiz, selectBusiness, timeReviewerDict_oneBiz)
+		
+	return (LR_coef, LR_coef2)
 			
-def LR_oneBiz(periodList, userInfo, timeReviewerDict_allBiz, repeatReviewUserSet):
-	R = 3
+def LR_oneBiz(periodList, userInfo, reviewData):
+	R = 10
 	Y = [0 for i in range(R+2)]
 	N = [0 for i in range(R+2)]
 	feature = []
@@ -222,14 +285,17 @@ def LR_oneBiz(periodList, userInfo, timeReviewerDict_allBiz, repeatReviewUserSet
 	totalReviewUserSet = set()
 	
 	for t in periodList:
+		#print t
 		activeUserSet = set()
 		reviewUserSet = set()
 		raw_reviewUserSet = set()
 		
-		if(timeReviewerDict_allBiz.has_key(t)):	
-			raw_reviewUserSet = set(timeReviewerDict_allBiz[t])
+		###fix bugs: the reviewUserList_oneBiz does not change
+		for b in reviewData.keys():
+			if(reviewData[b].has_key(t)):	
+				raw_reviewUserSet = raw_reviewUserSet.union(set(reviewData[b][t]))
 			
-		reviewUserSet = raw_reviewUserSet.difference(repeatReviewUserSet)
+		reviewUserSet = raw_reviewUserSet
 		totalReviewUserSet=totalReviewUserSet.union(reviewUserSet)
 
 		for u in totalReviewUserSet:
@@ -270,7 +336,7 @@ def LR_oneBiz(periodList, userInfo, timeReviewerDict_allBiz, repeatReviewUserSet
 						
 		totalReviewUserSet = totalReviewUserSet.difference(activeUserSet)
 	
-	print "positive %d negative %d"%(positive, negative)
+	#print "positive %d negative %d"%(positive, negative)
 	(LR_coef, LR_intercept) = LR_result(feature, output)
 	
 	return (LR_coef, LR_intercept)
@@ -282,7 +348,7 @@ def LR_result(x, y):
 	x_feature = [[math.log(i+1)] for i in x]
 	
 	model = model.fit(x_feature, y)
-	model.score(x_feature, y)
+	print model.score(x_feature, y)
 	return (model.coef_, model.intercept_)
 
 def activeFriend_Sum(user, userInfo, uReviewTime):
@@ -305,16 +371,44 @@ def activeFriend_Sum(user, userInfo, uReviewTime):
 
 def compute_oneBiz_helper(args):
 	return compute_oneBiz(*args)
+
+def permuteTime(timeReviewerDict_oneBiz, timeUserDict_oneBiz, periodList, timeUserLenDict):
+	permute_timeReviewerDict_oneBiz = {}
+	
+	totalSinceUserSet = set()
+	for t in periodList:
+		##todo
+		selectReviewerSum = 0
+		if timeUserLenDict.has_key(t):
+			selectReviewerSum = timeUserLenDict[t]
+		
+		sinceUserSet = set()
+		if timeUserDict_oneBiz.has_key(t):
+			sinceUserList = timeUserDict_oneBiz[t]
+			sinceUserSet = set(sinceUserList)
+			
+		totalSinceUserSet = totalSinceUserSet.union(sinceUserSet)
+		
+		selectUserList = randomSelectBusiness(list(totalSinceUserSet), selectReviewerSum)
+		selectUserSet = set(selectUserList)
+		
+		permute_timeReviewerDict_oneBiz.setdefault(t, [])
+		permute_timeReviewerDict_oneBiz[t] = selectUserList
+		
+		totalSinceUserSet = totalSinceUserSet.difference(selectUserSet)
+	
+	return permute_timeReviewerDict_oneBiz
 	
 def mainFunction():
-	f_result = open("coef_result.txt", "w")
+	f1_result = open("coef1_result.txt", "w")
+	f2_result = open("coef2_result.txt", "w")
 
 	(userInfo, timeUserData, userSum, userList) = loadUser()
 	
 	(reviewData, reviewSum, timeReviewUser) = loadReview()
 	(reviewList) = filterReviewData(reviewData, reviewSum)
 	
-	selectBusinessNum = 1000
+	selectBusinessNum = 1
 	selectBusinessList = randomSelectBusiness(reviewList, selectBusinessNum)
 	selectBusinessSet = set(selectBusinessList)
 	
@@ -324,35 +418,31 @@ def mainFunction():
 	negativeCoef = 0
 	
 	results=[]
-	pool_args = [(userInfo, reviewData[i], timeReviewUser) for i in selectBusinessSet]
+	pool_args = [(userInfo, i, reviewData) for i in selectBusinessSet]
 	
 	pool = ThreadPool(8)
 	results = pool.map(compute_oneBiz_helper, pool_args)
 	
-	results = []
-	#for i in range(selectBusinessNum):
-		# reviewBusinessData = reviewData[selectBusinessList[i]]
+	# results = []
 	
-		# (LR_coef, LR_intercept) = compute_oneBiz(userInfo, reviewBusinessData, timeReviewUser)
+	# for i in range(selectBusinessNum):
+		# selectBusiness = selectBusinessList[i]
+		# reviewData_allBiz = dict(reviewData)
+		# (LR_coef, LR_coef2) = compute_oneBiz(userInfo, selectBusiness, reviewData_allBiz)
 		
-		# results.append((LR_coef, LR_intercept))
-	
-	for (LR_coef, LR_intercept) in results:
-		if LR_coef > 0:
-			positiveCoef += 1
-		else:
-			negativeCoef += 1
-		
-		#print "coef %f"%LR_coef
-		f_result.write("%s\n"%LR_coef)
-	
-	f_result.write("positive coef %d, negative coef %d"%(positiveCoef, negativeCoef))
+		# results.append((LR_coef, LR_coef2))
+
+	for (LR_coef, LR_coef2) in results:
+		f1_result.write("%s\n"%LR_coef)
+		f2_result.write("%s\n"%LR_coef2)
 	
 	endTime = datetime.datetime.now()
 	timeIntervals = (endTime-beginTime).seconds
 	print "time interval %s"%timeIntervals
-	f_result.write("time interval %s"%timeIntervals)
-	f_result.close()
+	f1_result.write("time interval %s"%timeIntervals)
+	f2_result.write("time interval %s"%timeIntervals)
+	f1_result.close()
+	f2_result.close()
 
 mainFunction()
 

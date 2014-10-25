@@ -316,7 +316,7 @@ def mainFunction(downMonth, upMonth):
 	(reviewData, reviewSum, timeReviewUser) = loadReview()
 	(reviewList) = filterReviewData(reviewData, reviewSum)
 	
-	selectBusinessNum = 1000
+	selectBusinessNum = 1
 	selectBusinessList = randomSelectBusiness(reviewList, selectBusinessNum)
 	selectBusinessSet = set(selectBusinessList)
 	

@@ -6,7 +6,7 @@ import math
 import matplotlib.pyplot as plt
 
 def readTxtToList():
-	fp_read = open("coef_result.txt", "r")
+	fp_read = open("coef_result_10_21.txt", "r")
 	coefList = []
 	
 	for line in fp_read:
