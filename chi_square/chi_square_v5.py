@@ -1,5 +1,5 @@
 ###
-###new function: permute the attributes of the users rather than the users 
+###new function: permute the attributes of the users rather than the users --testCreateBranch
 ##########
 import simplejson as json
 import datetime
